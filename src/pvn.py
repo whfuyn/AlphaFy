@@ -1,66 +1,42 @@
 import os
 import keras
 import numpy as np
-from keras.layers import *
-from keras.models import Model
 from keras import regularizers
+from keras.models import Model, Input, load_model
 from keras.losses import categorical_crossentropy, mean_squared_error
+from keras.layers import (
+    Add, Dense, Conv2D, Reshape, Flatten, BatchNormalization, Activation
+)
 from config import (
     BOARD_SHAPE,
     NUM_RESIDUAL_BLOCKS,
     NUM_NETWORK_UNITS,
     L2_PENALTY,
-    BATCH_SIZE
 )
 
 
 class PolicyValueNet:
     def __init__(self, model_path):
-        self.nn = self.build()
-        self.model_path = model_path
-        if os.path.exists(self.model_path):
-            self.load()
+        if model_path is not None and os.path.exists(model_path):
+            # Need to pass loss function through custom_objects.
+            # I am not sure if I do it correctly, but it works.
+            self.nn = load_model(model_path,
+                                 custom_objects={'loss': self.loss})
+            print("pvn: Model loaded. Path: \"{}\"".format(model_path))
+        else:
+            self.nn = self.build()
+            print("pvn: New model created.")
 
 # Model utility
     def predict(self, features):
-        return self.nn.predict(features, batch_size=BATCH_SIZE)
+        return self.nn.predict(features)
 
-    def train(self, x, y, epochs=5, batch_size=BATCH_SIZE):
+    def train(self, x, y, epochs=5, batch_size=256):
         self.nn.fit(x, y, epochs=epochs, batch_size=batch_size)
 
-    def save(self, filepath=None):
-        filepath = filepath or self.model_path
-        self.nn.save_weights(filepath)
-
-    def load(self, filepath=None):
-        filepath = filepath or self.model_path
-        self.nn.load_weights(filepath)
-        print('pvn: Model loaded.')
-
-# CNN
-    def build_cnn(self):
-        inputs = Input(shape=BOARD_SHAPE + (2,))
-        nn = Conv2D(
-            filters=32, kernel_size=3, padding='same', activation='relu'
-        )(inputs)
-        nn = Conv2D(
-            filters=64, kernel_size=3, padding='same', activation='relu'
-        )(nn)
-        nn = MaxPooling2D(padding='same')(nn)
-        nn = Flatten()(nn)
-        nn = Dense(units=128, activation='relu')(nn)
-        nn = Dropout(0.4)(nn)
-        P = Dense(units=np.product(BOARD_SHAPE), activation='softmax')(nn)
-        P = Reshape(BOARD_SHAPE, name='policy')(P)
-        v = Dense(units=32, activation='relu')(nn)
-        v = Dense(units=1, activation='tanh', name='value')(v)
-        nn = Model(inputs=inputs, outputs=[P, v])
-        nn.compile(
-            optimizer='rmsprop',
-            loss=self.loss,
-            metrics=['accuracy']
-        )
-        return nn
+    def save(self, path):
+        self.nn.save(path)
+        print("pvn: Model saved. Path: \"{}\"".format(path))
 
 # Network architecture
     def build(self):

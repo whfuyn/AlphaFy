@@ -1,3 +1,4 @@
+import itertools
 import numpy as np
 from config import BOARD_SHAPE, NUM_CONNECTED_TO_WIN, GUIDED_BOARD
 
@@ -45,9 +46,9 @@ class Board:
         new_board.current_player = (-1) * self.current_player
         return new_board
 
-    def get_train_data(self):
-        train_data = np.dstack([self.board == 1, self.board == -1])
-        return train_data.astype(np.float32)
+    def get_board_data(self):
+        board_data = np.dstack([self.board == 1, self.board == -1])
+        return board_data.astype(np.float32)
 
     def check_move(self, move):
         # Get pep8 warning when using lambda expr
@@ -82,7 +83,7 @@ class Board:
 
     # This UI is from github project with modifications.
     # Too lazy to design an UI for myself..
-    def show(self):
+    def __str__(self):
         out = ""
         size = BOARD_SHAPE[0]
 
@@ -107,16 +108,15 @@ class Board:
             line += ("|" + "\n")
             out += line
         out += (label_boundry + label_letters)
-        print(out)
+        return out
 
     def get_all_defensive_moves(self):
         X, Y = BOARD_SHAPE
-        from itertools import product
         attack_four = []
         attack_three = []
         defensive_four = []
         defensive_three = []
-        for p in product(range(X), range(Y)):
+        for p in itertools.product(range(X), range(Y)):
             if self.board[p] == 0:
                 continue
             four, three = self.get_defensive_moves(p, 1)
