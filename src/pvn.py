@@ -16,16 +16,21 @@ from config import (
 
 
 class PolicyValueNet:
-    def __init__(self, model_path):
-        if model_path is not None and os.path.exists(model_path):
+    def __init__(self, model_path=None, config=dict()):
+        self.num_blocks = config.get('num_blocks', NUM_RESIDUAL_BLOCKS)
+        self.num_units = config.get('num_units', NUM_NETWORK_UNITS)
+        self.l2_penalty = config.get('l2_penalty', L2_PENALTY)
+        if model_path is None:
+            self.nn = self.build()
+            print("pvn: New model created.")
+        elif os.path.exists(model_path):
             # Need to pass loss function through custom_objects.
             # I am not sure if I do it correctly, but it works.
             self.nn = load_model(model_path,
                                  custom_objects={'loss': self.loss})
             print("pvn: Model loaded. Path: \"{}\"".format(model_path))
         else:
-            self.nn = self.build()
-            print("pvn: New model created.")
+            raise RuntimeError("pvn: Model file is not found.")
 
 # Model utility
     def predict(self, features):
@@ -42,9 +47,9 @@ class PolicyValueNet:
     def build(self):
         inputs = Input(shape=BOARD_SHAPE + (2,))
         nn = self.conv_block(
-            inputs, filters=NUM_NETWORK_UNITS, kernel_size=3
+            inputs, filters=self.num_units, kernel_size=3
         )
-        for i in range(NUM_RESIDUAL_BLOCKS):
+        for i in range(self.num_blocks):
             nn = self.residual_block(nn)
         P = self.policy_head(nn)
         v = self.value_head(nn)
@@ -70,8 +75,8 @@ class PolicyValueNet:
             kernel_size=kernel_size,
             strides=1,
             padding='same',
-            kernel_regularizer=regularizers.l2(L2_PENALTY),
-            bias_regularizer=regularizers.l2(L2_PENALTY)
+            kernel_regularizer=regularizers.l2(self.l2_penalty),
+            bias_regularizer=regularizers.l2(self.l2_penalty)
         )(x)
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
@@ -79,10 +84,10 @@ class PolicyValueNet:
 
     def residual_block(self, x):
         conv1 = self.conv_block(
-            x, filters=NUM_NETWORK_UNITS, kernel_size=3
+            x, filters=self.num_units, kernel_size=3
         )
         conv2 = self.conv_block(
-            conv1, filters=NUM_NETWORK_UNITS, kernel_size=3
+            conv1, filters=self.num_units, kernel_size=3
         )
         shortcut = Add()([conv2, x])
         return Activation('relu')(shortcut)
@@ -93,8 +98,8 @@ class PolicyValueNet:
         x = Dense(
             units=np.product(BOARD_SHAPE),
             activation='softmax',
-            kernel_regularizer=regularizers.l2(L2_PENALTY),
-            bias_regularizer=regularizers.l2(L2_PENALTY)
+            kernel_regularizer=regularizers.l2(self.l2_penalty),
+            bias_regularizer=regularizers.l2(self.l2_penalty)
         )(x)
         x = Reshape(BOARD_SHAPE, name='policy')(x)
         return x
@@ -103,16 +108,16 @@ class PolicyValueNet:
         x = self.conv_block(x, filters=1, kernel_size=1)
         x = Flatten()(x)
         x = Dense(
-            units=NUM_NETWORK_UNITS,
+            units=self.num_units,
             activation='relu',
-            kernel_regularizer=regularizers.l2(L2_PENALTY),
-            bias_regularizer=regularizers.l2(L2_PENALTY)
+            kernel_regularizer=regularizers.l2(self.l2_penalty),
+            bias_regularizer=regularizers.l2(self.l2_penalty)
         )(x)
         x = Dense(
             units=1,
             activation='tanh',
             name='value',
-            kernel_regularizer=regularizers.l2(L2_PENALTY),
-            bias_regularizer=regularizers.l2(L2_PENALTY)
+            kernel_regularizer=regularizers.l2(self.l2_penalty),
+            bias_regularizer=regularizers.l2(self.l2_penalty)
         )(x)
         return x

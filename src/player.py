@@ -1,39 +1,75 @@
+import time
 from pvn import PolicyValueNet
 from mcts import MonteCarloTreeSearch
-from config import DEFAULT_MODEL_PATH
 
 
 class Player:
-    def __init__(self, model_path=DEFAULT_MODEL_PATH, thinking_depth=1024):
-        model = PolicyValueNet(model_path)
-        self.mcts = MonteCarloTreeSearch(model)
+    def __init__(self, model=None, thinking_depth=1024, config=dict()):
+        if model is None:
+            pvn = PolicyValueNet(None, config)
+            self.mcts = MonteCarloTreeSearch(pvn)
+        elif isinstance(model, str):
+            self.load_model(model)
+        else:
+            self.mcts = MonteCarloTreeSearch(model)
         self.thinking_depth = thinking_depth
 
-    def self_play(self):
+    def self_play(self, show_board=True):
+        self.new_game()
+        while not self.is_game_end():
+            if show_board:
+                self.show()
+            x, y = self.pick()
+            self.set_move(x, y)
+        if show_board:
+            self.show()
+
+    def vs_user(self, first_hand=False):
         self.new_game()
         while not self.is_game_end():
             self.show()
-            move = self.pick()
-            self.set_move(*move)
+            if first_hand:
+                self.get_user_move()
+            else:
+                x, y = self.pick()
+                self.set_move(x, y)
+            first_hand = not first_hand
         self.show()
+        if self.get_game_state() == 'draw':
+            print('Draw game.')
+        elif first_hand:
+            print('AI win.')
+        else:
+            print('User win.')
 
-    def vs(self, opponent):
+    def get_user_move(self):
+        while True:
+            try:
+                x, y = eval(input("move: "))
+                self.set_move(x, y)
+                break
+            except:
+                print("Bad input, try again.")
+
+    def vs(self, opponent, show_board=True):
         current = self
         current.new_game()
         opponent.new_game()
         while not current.is_game_end():
-            current.show()
-            move = current.pick()
-            current.set_move(*move)
-            opponent.set_move(*move)
+            if show_board:
+                current.show()
+            x, y = current.pick()
+            current.set_move(x, y)
+            opponent.set_move(x, y)
             current, opponent = opponent, current
-        current.show()
+        if show_board:
+            current.show()
         if current.get_game_state() == 'draw':
-            print('Draw game.')
+            return 'Draw'
         elif current != self:
-            print('Player win.')
+            return 'Win'
         else:
-            print('Player lose.')
+            return 'Lose'
 
     def set_thinking_depth(self, depth):
         self.thinking_depth = depth
@@ -59,11 +95,59 @@ class Player:
         self.mcts.set_move(move)
 
     def save(self, name):
-        self.mcts.save_data('../model/{}.data'.format(name))
-        self.mcts.save_model('../model/{}.model'.format(name))
+        self.save_data(name)
+        self.save_model(name)
 
-    def load_data(self, path):
-        self.mcts.load_data(path)
+    def save_data(self, name, override=False):
+        self.mcts.save_data('../data/{}.data'.format(name), override)
+
+    def save_model(self, name, override=False):
+        self.mcts.save_model('../model/{}.model'.format(name), override)
+
+    def load_data(self, name='latest', merge=True):
+        self.mcts.load_data('../data/{}.data'.format(name), merge)
+
+    def load_model(self, name='latest'):
+        model = PolicyValueNet('../model/{}.model'.format(name))
+        self.mcts = MonteCarloTreeSearch(model)
 
     def train(self, epochs=5, batch_size=128):
+        if self.mcts.train_data[0].shape[0] == 0:
+            raise RuntimeError('player: Data is unloaded.')
         self.mcts.train(epochs, batch_size)
+
+    def clear_train_data(self):
+        self.mcts.clear_train_data()
+
+    def evolve(self, epochs=10):
+        for i in range(epochs):
+            self.clear_train_data()
+            timestamp = time.strftime('%Y%m%d%H%M%S')
+            self.save_model(timestamp)
+            opponent = Player(timestamp)
+            opponent.set_thinking_depth(256)
+            n = 50
+            while True:
+                self.set_thinking_depth(256)
+                for i in range(n):
+                    self.self_play(show_board=False)
+                self.save_data(timestamp, override=True)
+                self.train(10, 512)
+                score = dict(Win=0, Lose=0, Draw=0)
+                for i in range(10):
+                    score[self.vs(opponent, show_board=False)] += 1
+                for i in range(10):
+                    result = opponent.vs(self, show_board=False)
+                    result = \
+                        'Win' if result == 'Lose' else \
+                        'Lose' if result == 'Win' else \
+                        'Draw'
+                    score[result] += 1
+                print(score)
+                if score['Lose'] + 1 < score['Win']:
+                    print('Evlove succeed.')
+                    break
+                else:
+                    self.load_model(timestamp)
+                    self.load_data(timestamp)
+                n *= 2

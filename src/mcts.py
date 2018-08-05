@@ -92,7 +92,7 @@ class Node:
         if self.total_visit == 0:
             return np.ones(BOARD_SHAPE) / np.product(BOARD_SHAPE)
         total_move = self.board.total_move
-        if total_move <= 0.1 * np.product(BOARD_SHAPE):
+        if total_move <= 5:
             return self.N / self.total_visit
         else:
             most_visited = np.unravel_index(np.argmax(self.N), BOARD_SHAPE)
@@ -129,10 +129,15 @@ class MonteCarloTreeSearch:
         self.nodes = []
         self.new_game()
 
-    def load_data(self, path):
+    def load_data(self, path, merge=False):
         if os.path.exists(path):
             with open(path, 'rb') as f:
                 bs, Ps, vs = np.load(f)
+                if merge:
+                    b, P, v = self.train_data
+                    bs = np.vstack([bs, b])
+                    Ps = np.vstack([Ps, P])
+                    vs = np.vstack([vs, v])
                 self.train_data[:] = bs, Ps, vs
             print("mcts: Data loaded. Path: \"{}\"".format(path))
         else:
@@ -291,3 +296,9 @@ class MonteCarloTreeSearch:
     def ensure_game_no_end(self):
         if self.is_game_end():
             raise RuntimeError('Game: %s.' % self.get_game_state())
+
+    def clear_train_data(self):
+        board = np.zeros((0,) + BOARD_SHAPE + (2,), dtype=np.float32)
+        P = np.zeros((0,) + BOARD_SHAPE, dtype=np.float32)
+        v = np.zeros((0, 1), dtype=np.float32)
+        self.train_data[:] = board, P, v
