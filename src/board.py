@@ -1,10 +1,10 @@
 import itertools
 import numpy as np
-from config import BOARD_SHAPE, NUM_CONNECTED_TO_WIN, GUIDED_BOARD
+from config import BOARD_SHAPE, NUM_CONNECTED_TO_WIN
 
 
 class Board:
-    def __init__(self, board=None):
+    def __init__(self, board=None, guide_enabled=False):
         if board is None:
             self.board = np.zeros(BOARD_SHAPE, dtype=np.int32)
             self.game_state = 'playing'
@@ -14,15 +14,17 @@ class Board:
             self.current_player = 1
         else:
             self.board = board
+        self.guide_enabled = guide_enabled
 
     def get_available_moves(self):
         if self.game_state != 'playing':
             return (np.array([], dtype=np.int32), np.array([], dtype=np.int32))
-        if GUIDED_BOARD:
-            defensive_moves = self.get_all_defensive_moves()
-            if len(defensive_moves) != 0:
-                xs = np.array([p[0] for p in defensive_moves])
-                ys = np.array([p[1] for p in defensive_moves])
+        if self.guide_enabled:
+            occupied = np.where(self.board != 0)
+            threat_moves = self.get_all_threat_moves(occupied)
+            if len(threat_moves) != 0:
+                xs = np.array([p[0] for p in threat_moves])
+                ys = np.array([p[1] for p in threat_moves])
                 return (xs, ys)
         # It return (xs, ys) instead of xys, surprisingly.
         return np.where(self.board == 0)
@@ -38,7 +40,7 @@ class Board:
             raise ValueError('Positon {} has been occupied.'.format(move))
         data = np.negative(self.board)
         data[move] = -1
-        new_board = Board(data)
+        new_board = Board(data, self.guide_enabled)
         new_board.game_state = new_board.check_move(move)
         new_board.available_moves = new_board.get_available_moves()
         new_board.last_move = move
@@ -110,32 +112,31 @@ class Board:
         out += (label_boundry + label_letters)
         return out
 
-    def get_all_defensive_moves(self):
-        X, Y = BOARD_SHAPE
-        attack_four = []
-        attack_three = []
-        defensive_four = []
-        defensive_three = []
-        for p in itertools.product(range(X), range(Y)):
-            if self.board[p] == 0:
-                continue
-            four, three = self.get_defensive_moves(p, 1)
-            attack_four.extend(four)
-            attack_three.extend(three)
-            four, three = self.get_defensive_moves(p, -1)
-            defensive_four.extend(four)
-            defensive_three.extend(three)
-        ret = attack_four or defensive_four or attack_three or defensive_three
-        return list(set(ret))
+    def get_all_threat_moves(self, xsys):
+        offensive = []
+        deffensive = []
+        for p in zip(*xsys):
+            fatal, threat, weak = self.get_threat_moves(p, 1)
+            offensive.extend(fatal or threat)
+            _, threat, _ = self.get_threat_moves(p, -1)
+            # Fatal moves from opponent can't be avoided.
+            # Weak moves from opponent don't have to be responded now.
+            if len(threat) != 0:
+                deffensive.extend(threat)
+                deffensive.extend(weak)
+        moves = offensive or deffensive
+        return list(set(moves))
 
-    def get_defensive_moves(self, positon, c=1):
-        four = []
-        three = []
+    def get_threat_moves(self, xy, c=1):
+        fatal = []
+        threat = []
+        weak = []
+
         steps = [
             (1, 0), (0, 1), (1, 1), (1, -1),
             (-1, 0), (0, -1), (-1, -1), (-1, 1)
         ]
-        x, y = positon
+        x, y = xy
         for dx, dy in steps:
             # Defined in here for capturing dx, dy.
             def is_vaild(x, y):
@@ -158,32 +159,41 @@ class Board:
             if sum(map(is_stone, range(5))) == 4:
                 k = next(filter(is_empty, range(5)), None)
                 if k is not None:
-                    four.append((x + k * dx, y + k * dy))
+                    threat.append((x + k * dx, y + k * dy))
 
             # straight_four _OOOO_
             if all(map(is_stone, range(4))):
                 if is_empty(-1) and is_empty(4):
-                    four.append((x - dx, y - dy))
-                    four.append((x + 4 * dx, y + 4 * dy))
+                    fatal.append((x - dx, y - dy))
+                    fatal.append((x + 4 * dx, y + 4 * dy))
 
             # three 1 __OOO__
             if all(map(is_stone, range(3))):
                 if all(map(is_empty, [-2, -1, 3, 4])):
-                    three.append((x - dx, y - dy))
-                    three.append((x + 3 * dx, y + 3 * dy))
+                    threat.append((x - dx, y - dy))
+                    threat.append((x + 3 * dx, y + 3 * dy))
 
             # three 2 X_OOO__
             if all(map(is_stone, range(3))):
                 if is_block(-2) and all(map(is_empty, [-1, 3, 4])):
-                    three.append((x - dx, y - dy))
-                    three.append((x + 3 * dx, y + 3 * dy))
-                    three.append((x + 4 * dx, y + 4 * dy))
+                    threat.append((x - dx, y - dy))
+                    threat.append((x + 3 * dx, y + 3 * dy))
+                    threat.append((x + 4 * dx, y + 4 * dy))
 
             # broken three _O_OO_
             if all(map(is_stone, [0, 2, 3])) \
                     and all(map(is_empty, [-1, 1, 4])):
-                three.append((x - dx, y - dy))
-                three.append((x + dx, y + dy))
-                three.append((x + 4 * dx, y + 4 * dy))
+                threat.append((x - dx, y - dy))
+                threat.append((x + dx, y + dy))
+                fatal.append((x + dx, y + dy))
+                threat.append((x + 4 * dx, y + 4 * dy))
 
-        return four, three
+            # weak three XOOO__
+            # weak three XO_OO_
+            # weak three XOO_O_
+            if is_block(-1) and not any(map(is_block, range(5))) \
+                    and sum(map(is_stone, range(4))) == 3:
+                ks = filter(is_empty, range(5))
+                weak.extend((x + k * dx, y + k * dy) for k in ks)
+
+        return fatal, threat, weak

@@ -11,7 +11,8 @@ from config import (
     ALPHA,
     EPSILON,
     VIRTUAL_DISCOUNT,
-    DEFAULT_PARALLEL_NUM
+    DEFAULT_PARALLEL_NUM,
+    DEFAULT_GUIDE_ENABLED
 )
 
 
@@ -49,6 +50,7 @@ class Node:
         pi = self.get_search_probability()
         index = np.random.choice(np.product(BOARD_SHAPE), p=pi.flatten())
         move = np.unravel_index(index, BOARD_SHAPE)
+        self.expand(move)
         return move
 
     def expand(self, move):
@@ -90,7 +92,10 @@ class Node:
 
     def get_search_probability(self):
         if self.total_visit == 0:
-            return np.ones(BOARD_SHAPE) / np.product(BOARD_SHAPE)
+            n = len(self.board.available_moves[0])
+            pi = np.zeros(BOARD_SHAPE)
+            pi[self.board.available_moves] = 1 / n
+            return pi
         total_move = self.board.total_move
         if total_move <= 5:
             return self.N / self.total_visit
@@ -112,9 +117,12 @@ class Node:
 class MonteCarloTreeSearch:
     def __init__(self,
                  model,
-                 parallel_num=DEFAULT_PARALLEL_NUM):
+                 parallel_num=DEFAULT_PARALLEL_NUM,
+                 guide_enabled=DEFAULT_GUIDE_ENABLED
+                 ):
         self.model = model
         self.parallel_num = parallel_num
+        self.guide_enabled = guide_enabled
         self.pool = ThreadPoolExecutor(max_workers=self.parallel_num)
 
         board = np.zeros((0,) + BOARD_SHAPE + (2,), dtype=np.float32)
@@ -138,6 +146,7 @@ class MonteCarloTreeSearch:
                     bs = np.vstack([bs, b])
                     Ps = np.vstack([Ps, P])
                     vs = np.vstack([vs, v])
+                self.train_data = np.empty(3, dtype=object)
                 self.train_data[:] = bs, Ps, vs
             print("mcts: Data loaded. Path: \"{}\"".format(path))
         else:
@@ -202,13 +211,16 @@ class MonteCarloTreeSearch:
                 p = np.rot90(p)
             z *= -1
         b, P, v = self.train_data
+        self.train_data = np.empty(3, dtype=object)
         bs.append(b)
         Ps.append(P)
         vs.append(v)
+        del b
+        del P
+        del v
         bs = np.vstack(bs)
         Ps = np.vstack(Ps)
         vs = np.vstack(vs)
-        self.train_data = np.empty(3, dtype=object)
         self.train_data[:] = bs, Ps, vs
 
     def train(self, epochs=5, batch_size=128):
@@ -265,7 +277,7 @@ class MonteCarloTreeSearch:
             self.into_train_data(z)
 
     def new_game(self):
-        self.root = Node(Board(), None)
+        self.root = Node(Board(None, self.guide_enabled), None)
         self.evaluate([self.root])
         self.nodes.clear()
 
@@ -302,3 +314,9 @@ class MonteCarloTreeSearch:
         P = np.zeros((0,) + BOARD_SHAPE, dtype=np.float32)
         v = np.zeros((0, 1), dtype=np.float32)
         self.train_data[:] = board, P, v
+
+    def enable_guide(self):
+        self.guide_enabled = True
+
+    def disable_guide(self):
+        self.guide_enabled = False

@@ -94,9 +94,9 @@ class Player:
         move = (x - 1, y - 1)
         self.mcts.set_move(move)
 
-    def save(self, name):
-        self.save_data(name)
-        self.save_model(name)
+    def save(self, name, override=False):
+        self.save_data(name, override)
+        self.save_model(name, override)
 
     def save_data(self, name, override=False):
         self.mcts.save_data('../data/{}.data'.format(name), override)
@@ -121,19 +121,30 @@ class Player:
 
     def evolve(self, epochs=10):
         for i in range(epochs):
-            self.clear_train_data()
+            if i > 0:
+                self.clear_train_data()
             timestamp = time.strftime('%Y%m%d%H%M%S')
             self.save_model(timestamp)
             opponent = Player(timestamp)
+            opponent.disable_guide()
             opponent.set_thinking_depth(256)
-            n = 50
+            self.set_thinking_depth(256)
+            n = 64
             while True:
-                self.set_thinking_depth(256)
+                print('Self playing: ', end='')
                 for i in range(n):
+                    self.enable_guide()
                     self.self_play(show_board=False)
-                self.save_data(timestamp, override=True)
-                self.train(10, 512)
+                    print(i + 1, end=' ')
+                    if (i + 1) % 64 == 0:
+                        print('')
+                        timestamp = time.strftime('%Y%m%d%H%M%S')
+                        self.save(timestamp, override=True)
+                        print('')
+                print('done.')
+                self.train(5, 512)
                 score = dict(Win=0, Lose=0, Draw=0)
+                self.disable_guide()
                 for i in range(10):
                     score[self.vs(opponent, show_board=False)] += 1
                 for i in range(10):
@@ -144,10 +155,29 @@ class Player:
                         'Draw'
                     score[result] += 1
                 print(score)
-                if score['Lose'] + 1 < score['Win']:
+                if score['Lose'] + 5 <= score['Win']:
                     print('Evlove succeed.')
                     break
                 else:
                     self.load_model(timestamp)
                     self.load_data(timestamp)
                 n *= 2
+
+    def benchmark(self, opponent):
+            score = dict(Win=0, Lose=0, Draw=0)
+            for i in range(10):
+                score[self.vs(opponent, show_board=False)] += 1
+            for i in range(10):
+                result = opponent.vs(self, show_board=False)
+                result = \
+                    'Win' if result == 'Lose' else \
+                    'Lose' if result == 'Win' else \
+                    'Draw'
+                score[result] += 1
+            print(score)
+
+    def enable_guide(self):
+        self.mcts.enable_guide()
+
+    def disable_guide(self):
+        self.mcts.disable_guide()
