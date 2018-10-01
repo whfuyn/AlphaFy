@@ -45,9 +45,11 @@ class Player:
     def get_user_move(self):
         while True:
             try:
-                x, y = eval(input("move: "))
+                cmd = input("move: ")
+                x, y = eval(cmd)
                 self.set_move(x, y)
-                break
+            except KeyboardInterrupt as e:
+                raise e
             except:
                 print("Bad input, try again.")
 
@@ -127,13 +129,13 @@ class Player:
             self.save_model(timestamp)
             opponent = Player(timestamp)
             opponent.disable_guide()
-            opponent.set_thinking_depth(256)
-            self.set_thinking_depth(256)
-            n = 64
+            n = 16
             while True:
                 print('Self playing: ', end='')
                 for i in range(n):
-                    self.enable_guide()
+                    # self.enable_guide()
+                    opponent.set_thinking_depth(32)
+                    self.set_thinking_depth(32)
                     self.self_play(show_board=False)
                     print(i + 1, end=' ')
                     if (i + 1) % 64 == 0:
@@ -142,20 +144,22 @@ class Player:
                         self.save(timestamp, override=True)
                         print('')
                 print('done.')
-                self.train(5, 512)
+                self.train(5, 128)
                 score = dict(Win=0, Lose=0, Draw=0)
+                opponent.set_thinking_depth(64)
+                self.set_thinking_depth(64)
                 self.disable_guide()
                 for i in range(10):
-                    score[self.vs(opponent, show_board=False)] += 1
+                    score[self.vs(opponent, show_board=True)] += 1
                 for i in range(10):
-                    result = opponent.vs(self, show_board=False)
+                    result = opponent.vs(self, show_board=True)
                     result = \
                         'Win' if result == 'Lose' else \
                         'Lose' if result == 'Win' else \
                         'Draw'
                     score[result] += 1
                 print(score)
-                if score['Lose'] + 5 <= score['Win']:
+                if score['Lose'] + 3 <= score['Win']:
                     print('Evlove succeed.')
                     break
                 else:
@@ -164,11 +168,13 @@ class Player:
                 n *= 2
 
     def benchmark(self, opponent):
+            self.disable_guide()
+            opponent.disable_guide()
             score = dict(Win=0, Lose=0, Draw=0)
             for i in range(10):
-                score[self.vs(opponent, show_board=False)] += 1
+                score[self.vs(opponent, show_board=True)] += 1
             for i in range(10):
-                result = opponent.vs(self, show_board=False)
+                result = opponent.vs(self, show_board=True)
                 result = \
                     'Win' if result == 'Lose' else \
                     'Lose' if result == 'Win' else \

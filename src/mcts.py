@@ -97,7 +97,7 @@ class Node:
             pi[self.board.available_moves] = 1 / n
             return pi
         total_move = self.board.total_move
-        if total_move <= 5:
+        if total_move <= 3:
             return self.N / self.total_visit
         else:
             most_visited = np.unravel_index(np.argmax(self.N), BOARD_SHAPE)
@@ -200,6 +200,11 @@ class MonteCarloTreeSearch:
         for node in reversed(self.nodes):
             b = node.get_board_data()
             p = node.get_search_probability()
+            # # disable augmentation
+            # bs.append([b])
+            # Ps.append([p])
+            # vs.append([z])
+
             # Data augmentation
             for _ in range(4):
                 r = (1, -1)
@@ -273,7 +278,8 @@ class MonteCarloTreeSearch:
         self.nodes.append(self.root)
         self.root = new_root
         if self.is_game_end():
-            z = -1 if self.get_game_state() == 'lose' else 0
+            # The last board isn't used for training.
+            z = 1 if self.get_game_state() == 'lose' else 0
             self.into_train_data(z)
 
     def new_game(self):
