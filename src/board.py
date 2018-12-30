@@ -20,8 +20,7 @@ class Board:
         if self.game_state != 'playing':
             return (np.array([], dtype=np.int32), np.array([], dtype=np.int32))
         if self.guide_enabled:
-            occupied = np.where(self.board != 0)
-            threat_moves = self.get_all_threat_moves(occupied)
+            threat_moves = self.get_all_threat_moves()
             if len(threat_moves) != 0:
                 xs = np.array([p[0] for p in threat_moves])
                 ys = np.array([p[1] for p in threat_moves])
@@ -112,22 +111,31 @@ class Board:
         out += (label_boundry + label_letters)
         return out
 
-    def get_all_threat_moves(self, xsys):
-        offensive = []
-        deffensive = []
-        for p in zip(*xsys):
-            fatal, threat, weak = self.get_threat_moves(p, 1)
-            offensive.extend(fatal or threat)
-            _, threat, _ = self.get_threat_moves(p, -1)
-            # Fatal moves from opponent can't be avoided.
-            # Weak moves from opponent don't have to be responded now.
-            if len(threat) != 0:
-                deffensive.extend(threat)
-                deffensive.extend(weak)
+    def get_all_threat_moves(self):
+        offensive, deffensive = [], []
+        fatal, threat, weak = [], [], []
+        opponent_threat = []
+        for p in zip(*np.where(self.board == 1)):
+            f, t, w = self.get_threat_moves(p, 1)
+            fatal.extend(f)
+            threat.extend(t)
+            weak.extend(w)
+        for p in zip(*np.where(self.board == -1)):
+            f, t, _ = self.get_threat_moves(p, -1)
+            opponent_threat.extend(f or t)
+
+        if len(fatal) != 0:
+            offensive.extend(fatal)
+        elif len(threat) != 0:
+            offensive.extend(threat)
+        elif len(opponent_threat) != 0:
+            deffensive.extend(opponent_threat)
+            deffensive.extend(weak)
         moves = offensive or deffensive
+
         return list(set(moves))
 
-    def get_threat_moves(self, xy, c=1):
+    def get_threat_moves(self, xy, c):
         fatal = []
         threat = []
         weak = []
