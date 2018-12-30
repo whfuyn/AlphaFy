@@ -8,9 +8,9 @@ DEFAULT_PARALLEL_NUM = 8  # Faster at the cost of thinking depth.
 # Game
 BOARD_SHAPE = (9, 9)
 NUM_CONNECTED_TO_WIN = 5
-DEFAULT_GUIDE_ENABLED = True  # This option is slow.
+DEFAULT_GUIDE_ENABLED = False  # This option is slow.
 
 # Network
 L2_PENALTY = 3e-3
-NUM_RESIDUAL_BLOCKS = 5
-NUM_NETWORK_UNITS = 128
+NUM_RESIDUAL_BLOCKS = 3
+NUM_NETWORK_UNITS = 32

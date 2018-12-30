@@ -97,7 +97,7 @@ class Node:
             pi[self.board.available_moves] = 1 / n
             return pi
         total_move = self.board.total_move
-        if total_move <= 3:
+        if total_move <= 5:
             return self.N / self.total_visit
         else:
             most_visited = np.unravel_index(np.argmax(self.N), BOARD_SHAPE)
