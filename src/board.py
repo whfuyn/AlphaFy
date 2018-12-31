@@ -112,34 +112,29 @@ class Board:
         return out
 
     def get_all_threat_moves(self):
-        offensive, deffensive = [], []
-        fatal, threat, weak = [], [], []
-        opponent_threat = []
+        # x: opponent threat
+        fatal, strong, weak = [], [], []
+        xfatal, xstrong, _ = [], [], []
         for p in zip(*np.where(self.board == 1)):
-            f, t, w = self.get_threat_moves(p, 1)
+            f, s, w = self.get_threat_moves(p, 1)
             fatal.extend(f)
-            threat.extend(t)
+            strong.extend(s)
             weak.extend(w)
         for p in zip(*np.where(self.board == -1)):
-            f, t, _ = self.get_threat_moves(p, -1)
-            opponent_threat.extend(f or t)
+            f, s, _ = self.get_threat_moves(p, -1)
+            xfatal.extend(f)
+            xstrong.extend(s)
 
-        if len(fatal) != 0:
-            offensive.extend(fatal)
-        elif len(threat) != 0:
-            offensive.extend(threat)
-        elif len(opponent_threat) != 0:
-            deffensive.extend(opponent_threat)
-            deffensive.extend(weak)
-        moves = offensive or deffensive
-
+        if xstrong:
+            xstrong.extend(weak)
+        moves = fatal or xfatal or strong or xstrong
         return list(set(moves))
 
     def get_threat_moves(self, xy, c):
-        fatal = []
-        threat = []
-        weak = []
-
+        # fatal: 1 move to win
+        # strong: 1 move to an inevitable fatal
+        # weak: 1 move to an evitable fatal
+        fatal, strong, weak = [], [], []
         steps = [
             (1, 0), (0, 1), (1, 1), (1, -1),
             (-1, 0), (0, -1), (-1, -1), (-1, 1)
@@ -167,34 +162,27 @@ class Board:
             if sum(map(is_stone, range(5))) == 4:
                 k = next(filter(is_empty, range(5)), None)
                 if k is not None:
-                    threat.append((x + k * dx, y + k * dy))
-
-            # straight_four _OOOO_
-            if all(map(is_stone, range(4))):
-                if is_empty(-1) and is_empty(4):
-                    fatal.append((x - dx, y - dy))
-                    fatal.append((x + 4 * dx, y + 4 * dy))
+                    fatal.append((x + k * dx, y + k * dy))
 
             # three 1 __OOO__
             if all(map(is_stone, range(3))):
                 if all(map(is_empty, [-2, -1, 3, 4])):
-                    threat.append((x - dx, y - dy))
-                    threat.append((x + 3 * dx, y + 3 * dy))
+                    strong.append((x - dx, y - dy))
+                    strong.append((x + 3 * dx, y + 3 * dy))
 
             # three 2 X_OOO__
             if all(map(is_stone, range(3))):
                 if is_block(-2) and all(map(is_empty, [-1, 3, 4])):
-                    threat.append((x - dx, y - dy))
-                    threat.append((x + 3 * dx, y + 3 * dy))
-                    threat.append((x + 4 * dx, y + 4 * dy))
+                    strong.append((x - dx, y - dy))
+                    strong.append((x + 3 * dx, y + 3 * dy))
+                    strong.append((x + 4 * dx, y + 4 * dy))
 
             # broken three _O_OO_
             if all(map(is_stone, [0, 2, 3])) \
                     and all(map(is_empty, [-1, 1, 4])):
-                threat.append((x - dx, y - dy))
-                threat.append((x + dx, y + dy))
-                fatal.append((x + dx, y + dy))
-                threat.append((x + 4 * dx, y + 4 * dy))
+                strong.append((x - dx, y - dy))
+                strong.append((x + dx, y + dy))
+                strong.append((x + 4 * dx, y + 4 * dy))
 
             # weak three XOOO__
             # weak three XO_OO_
@@ -204,4 +192,4 @@ class Board:
                 ks = filter(is_empty, range(5))
                 weak.extend((x + k * dx, y + k * dy) for k in ks)
 
-        return fatal, threat, weak
+        return fatal, strong, weak
