@@ -8,6 +8,7 @@
 2. Keras 
 
 ## Usage
+  A tutorial is available in the src folder.
 
   1. Create a player.
   
@@ -64,7 +65,9 @@
 
 ## Example
 
-No-guide, thinking-depth=512
+This is an example game record of the pretrain model's self-play, under the config of 512 nodes expaned each move(thinking-depth=512), 
+guide turned off(fy.disable_guide()), 8 threads(changeable in config.py). To achieve a human-level performance, set thinking-depth to 30000 or higher.
+
 ```
      1 2 3 4 5 6 7 8 9
    +-------------------+
