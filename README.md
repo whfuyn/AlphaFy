@@ -1,7 +1,7 @@
 # AlphaFy
 
   AlphaFy is a Gomoku AI based on AlphaGo Zero's Algorithm. It use the same structure as AlphaGo Zero (Monte Carlo Tree Search and Residual Network). 
-  The game's board size is scalable, so you can try your algorithm on 3x3 Tic-tac-toe and then scale it to a biggger board like a 9x9 gomoku.
+  The game's board size is scalable, so you can try your algorithm on 3x3 Tic-tac-toe and then scale it to a bigger board like a 9x9 gomoku.
 
 ## Requirement
 1. Python 3.6
